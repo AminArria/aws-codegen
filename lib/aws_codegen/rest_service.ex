@@ -30,29 +30,34 @@ defmodule AWS.CodeGen.RestService do
     end
 
     def url_path(action) do
-      Enum.reduce(action.url_parameters, action.request_uri, fn parameter, acc ->
-        multi_segment = Parameter.multi_segment?(parameter, acc)
-
-        name =
-          if action.language == :elixir do
-            if multi_segment do
-              Enum.join([~S(#{), "AWS.Util.encode_multi_segment_uri(", parameter.code_name, ")", ~S(})])
+      path =
+        Enum.reduce(action.url_parameters, action.request_uri, fn parameter, acc ->
+          multi_segment = Parameter.multi_segment?(parameter, acc)
+          name =
+            if action.language == :elixir do
+              if multi_segment do
+                Enum.join([~S(#{), "AWS.Util.encode_multi_segment_uri(", parameter.code_name, ")", ~S(})])
+              else
+                Enum.join([~S(#{), "AWS.Util.encode_uri(", parameter.code_name, ")", ~S(})])
+              end
             else
-              Enum.join([~S(#{), "AWS.Util.encode_uri(", parameter.code_name, ")", ~S(})])
+              if multi_segment do
+                Enum.join(["\", aws_util:encode_multi_segment_uri(", parameter.code_name, "), \""])
+              else
+                Enum.join(["\", aws_util:encode_uri(", parameter.code_name, "), \""])
+              end
             end
-          else
-            if multi_segment do
-              Enum.join(["\", aws_util:encode_multi_segment_uri(", parameter.code_name, "), \""])
-            else
-              Enum.join(["\", aws_util:encode_uri(", parameter.code_name, "), \""])
-            end
-          end
 
-        # Some url parameters have a trailing "+" indicating they are
-        # multi-segment. This regex takes that into account.
-        {:ok, re} = Regex.compile("{#{parameter.location_name}\\+?}")
-        String.replace(acc, re, name)
-      end)
+            # Some url parameters have a trailing "+" indicating they are
+            # multi-segment. This regex takes that into account.
+            {:ok, re} = Regex.compile("{#{parameter.location_name}\\+?}")
+            String.replace(acc, re, name)
+        end)
+      if action.language == :elixir do
+         path
+      else
+        Regex.replace(~r/\?(.*)$/, path, "?\", aws_util:encode_uri(<<\"\\g{1}\">>), \"")
+      end
     end
   end
 
