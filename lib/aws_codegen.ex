@@ -119,6 +119,7 @@ defmodule AWS.CodeGen do
       File.write(output_path, code)
       end
     else
+      IO.puts inspect(spec.protocol, pretty: true)
       IO.puts("Failed to generate #{spec.module_name}, protocol #{spec.protocol}")
     end
   end

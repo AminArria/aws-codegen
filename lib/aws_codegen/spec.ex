@@ -9,13 +9,15 @@ defmodule AWS.CodeGen.Spec do
           protocol: atom(),
           module_name: binary(),
           filename: binary(),
-          api: map()
+          api: map(),
+          language: binary()
         }
 
   defstruct protocol: nil,
             module_name: nil,
             filename: nil,
-            api: nil
+            api: nil,
+            language: nil
 
   def parse(api_filename, language) do
     IO.puts("api_filename: #{api_filename}")
@@ -410,6 +412,13 @@ defmodule AWS.CodeGen.Spec do
                    _ -> nil
                  end
                end)
+               |> String.replace("restJson1", "rest_json")
+               |> String.replace("awsJson1_0", "json")
+               |> String.replace("awsJson1_1", "json")
+               |> String.replace("awsQuery", "query")
+               |> String.replace("restXml", "rest_xml")
+               |> String.replace("ec2Query", "ec2")
+               |> String.to_atom()
     IO.puts inspect(protocol, pretty: true)
     module_name = module_name(traits, language)
     IO.puts inspect(module_name, pretty: true)
@@ -418,7 +427,8 @@ defmodule AWS.CodeGen.Spec do
       protocol: protocol,
       module_name: module_name,
       filename: filename,
-      api: api
+      api: api,
+      language: language
     }
   end
 
