@@ -53,49 +53,51 @@ defmodule AWS.CodeGen.PostService do
   `:elixir` or `:erlang`.
   """
   def load_context(language, %AWS.CodeGen.Spec{} = spec, endpoints_spec) do
-    metadata = spec.api["metadata"]
-    actions = collect_actions(language, spec.api, spec.doc)
+    ## TODO: implement
+    %Service{actions: []}
+    # metadata = spec.api["metadata"]
+    # actions = collect_actions(language, spec.api, spec.doc)
 
-    endpoint_prefix = metadata["endpointPrefix"]
-    endpoint_info = endpoints_spec["services"][endpoint_prefix]
-    is_global = not is_nil(endpoint_info) and not Map.get(endpoint_info, "isRegionalized", true)
+    # endpoint_prefix = metadata["endpointPrefix"]
+    # endpoint_info = endpoints_spec["services"][endpoint_prefix]
+    # is_global = not is_nil(endpoint_info) and not Map.get(endpoint_info, "isRegionalized", true)
 
-    credential_scope =
-      if is_global do
-        endpoint_info["endpoints"]["aws-global"]["credentialScope"]["region"]
-      end
+    # credential_scope =
+    #   if is_global do
+    #     endpoint_info["endpoints"]["aws-global"]["credentialScope"]["region"]
+    #   end
 
-    json_version = metadata["jsonVersion"]
-    protocol = metadata["protocol"]
-    content_type = @configuration[protocol][:content_type]
-    content_type = content_type <> if protocol == "json", do: json_version, else: ""
+    # json_version = metadata["jsonVersion"]
+    # protocol = metadata["protocol"]
+    # content_type = @configuration[protocol][:content_type]
+    # content_type = content_type <> if protocol == "json", do: json_version, else: ""
 
-    signing_name =
-      case metadata["signingName"] do
-        nil -> endpoint_prefix
-        sn -> sn
-      end
+    # signing_name =
+    #   case metadata["signingName"] do
+    #     nil -> endpoint_prefix
+    #     sn -> sn
+    #   end
 
-    %Service{
-      abbreviation: metadata["serviceAbbreviation"],
-      actions: actions,
-      api_version: metadata["apiVersion"],
-      credential_scope: credential_scope,
-      content_type: content_type,
-      docstring: Docstring.format(language, spec.doc["service"]),
-      decode: Map.fetch!(@configuration[protocol][language], :decode),
-      encode: Map.fetch!(@configuration[protocol][language], :encode),
-      endpoint_prefix: endpoint_prefix,
-      is_global: is_global,
-      json_version: json_version,
-      language: language,
-      module_name: spec.module_name,
-      protocol: protocol,
-      signing_name: signing_name,
-      signature_version: metadata["signatureVersion"],
-      service_id: metadata["serviceId"],
-      target_prefix: metadata["targetPrefix"]
-    }
+    # %Service{
+    #   abbreviation: metadata["serviceAbbreviation"],
+    #   actions: actions,
+    #   api_version: metadata["apiVersion"],
+    #   credential_scope: credential_scope,
+    #   content_type: content_type,
+    #   docstring: Docstring.format(language, spec.doc["service"]),
+    #   decode: Map.fetch!(@configuration[protocol][language], :decode),
+    #   encode: Map.fetch!(@configuration[protocol][language], :encode),
+    #   endpoint_prefix: endpoint_prefix,
+    #   is_global: is_global,
+    #   json_version: json_version,
+    #   language: language,
+    #   module_name: spec.module_name,
+    #   protocol: protocol,
+    #   signing_name: signing_name,
+    #   signature_version: metadata["signatureVersion"],
+    #   service_id: metadata["serviceId"],
+    #   target_prefix: metadata["targetPrefix"]
+    # }
   end
 
   defp collect_actions(language, api_spec, doc_spec) do
