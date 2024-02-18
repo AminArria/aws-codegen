@@ -10,14 +10,16 @@ defmodule AWS.CodeGen.Spec do
           module_name: binary(),
           filename: binary(),
           api: map(),
-          language: binary()
+          language: binary(),
+          shape_name: binary()
         }
 
   defstruct protocol: nil,
             module_name: nil,
             filename: nil,
             api: nil,
-            language: nil
+            language: nil,
+            shape_name: nil
 
   def parse(api_filename, language) do
     IO.puts("api_filename: #{api_filename}")
@@ -51,6 +53,7 @@ defmodule AWS.CodeGen.Spec do
                     |> String.replace(~r[^appstream$], "PhotonAdminProxyService")
                     |> String.replace(~r[^appsync$], "AWSDeepdishControlPlaneService")
                     |> String.replace(~r[^arczonalshift$], "PercDataPlane")
+                    |> String.replace(~r[^artifact$], "Artifact")
                     |> String.replace(~r[^athena$], "AmazonAthena")
                     |> String.replace(~r[^auditmanager$], "BedrockAssessmentManagerLambda")
                     |> String.replace(~r[^autoscalingplans$], "AnyScaleScalingPlannerFrontendService")
@@ -428,7 +431,8 @@ defmodule AWS.CodeGen.Spec do
       module_name: module_name,
       filename: filename,
       api: api,
-      language: language
+      language: language,
+      shape_name: "com.amazonaws." <> api_name <> "#" <> service_name
     }
   end
 

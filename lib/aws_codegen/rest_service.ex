@@ -82,7 +82,7 @@ defmodule AWS.CodeGen.RestService do
   end
 
   @configuration %{
-    "rest-xml" => %{
+    :rest_xml => %{
       content_type: "text/xml",
       elixir: %{
         decode: "xml",
@@ -93,7 +93,7 @@ defmodule AWS.CodeGen.RestService do
         encode: "aws_util:encode_xml(Input)"
       }
     },
-    "rest-json" => %{
+    :rest_json => %{
       content_type: "application/x-amz-json-1.1",
       elixir: %{
         decode: "json",
@@ -113,10 +113,11 @@ defmodule AWS.CodeGen.RestService do
   `:elixir` or `:erlang`.
   """
   def load_context(language, %AWS.CodeGen.Spec{} = spec, endpoints_spec) do
-    metadata = spec.api["metadata"]
-    actions = collect_actions(language, spec.api, spec.doc)
-    protocol = metadata["protocol"]
-    endpoint_prefix = metadata["endpointPrefix"]
+    service = spec.api["shapes"][spec.shape_name]
+    traits = service["traits"]
+    actions = collect_actions(language, spec.api)
+    protocol = spec.protocol |> IO.inspect(label: "protocol")
+    endpoint_prefix = traits["aws.api#service"]["endpointPrefix"] || traits["aws.api#service"]["arnNamespace"] ##TODO: for some reason this field is not always present and docs are not clear on what to do
     endpoint_info = endpoints_spec["services"][endpoint_prefix]
     is_global = not is_nil(endpoint_info) and not Map.get(endpoint_info, "isRegionalized", true)
 
@@ -125,26 +126,27 @@ defmodule AWS.CodeGen.RestService do
         endpoint_info["endpoints"]["aws-global"]["credentialScope"]["region"]
       end
 
-    signing_name = metadata["signingName"] || endpoint_prefix
+    ## TODO: this is wrong because it could also be sigv4a or else
+    signing_name = traits["aws.auth#sigv4"]["name"] || endpoint_prefix
 
     %Service{
       actions: actions,
-      api_version: metadata["apiVersion"],
-      docstring: Docstring.format(language, spec.doc["service"]),
+      api_version: service["version"],
+      docstring: Docstring.format(language, "placeholder docs"), ##TODO: proper docs spec.doc["service"]),
       credential_scope: credential_scope,
       content_type: @configuration[protocol][:content_type],
       decode: Map.fetch!(@configuration[protocol][language], :decode),
       encode: Map.fetch!(@configuration[protocol][language], :encode),
       endpoint_prefix: endpoint_prefix,
       is_global: is_global,
-      json_version: metadata["jsonVersion"],
+      json_version: get_json_version(traits),
       language: language,
       module_name: spec.module_name,
-      protocol: metadata["protocol"],
+      protocol: nil, ## TODO: metadata["protocol"],
       signing_name: signing_name,
-      signature_version: metadata["signatureVersion"],
-      service_id: metadata["serviceId"],
-      target_prefix: metadata["targetPrefix"]
+      signature_version: get_signature_version(traits),
+      service_id: traits["aws.api#service"]["sdkId"],
+      target_prefix: nil, ##TODO: metadata["targetPrefix"]
     }
   end
 
@@ -203,11 +205,28 @@ defmodule AWS.CodeGen.RestService do
     )
   end
 
-  defp collect_actions(language, api_spec, doc_spec) do
+  defp collect_actions(language, api_spec) do
     shapes = api_spec["shapes"]
 
-    Enum.map(api_spec["operations"], fn {operation, _metadata} ->
-      operation_spec = api_spec["operations"][operation]
+    operations =
+      Enum.reduce(shapes, [], fn {_, shape}, acc ->
+        case shape["type"] do
+          "service" ->
+
+            (shape["operations"] || []) ++ acc
+          "resource" ->
+            [shape["operations"], shape["collectionOperations"], shape["create"], shape["put"], shape["read"], shape["update"], shape["delete"], shape["list"]]
+            |> Enum.reject(&is_nil/1)
+            |> Kernel.++(acc)
+          _ ->
+            acc
+        end
+      end)
+      |> List.flatten()
+      |> Enum.map(fn %{"target" => target} -> target end)
+
+    Enum.map(operations, fn operation ->
+      operation_spec = shapes[operation]
 
       url_parameters = collect_url_parameters(language, api_spec, operation)
       query_parameters = collect_query_parameters(language, api_spec, operation)
@@ -219,7 +238,7 @@ defmodule AWS.CodeGen.RestService do
       is_required = fn param -> param.required end
       required_query_parameters = Enum.filter(query_parameters, is_required)
       required_request_header_parameters = Enum.filter(request_header_parameters, is_required)
-      method = operation_spec["http"]["method"]
+      method = operation_spec["traits"]["smithy.api#http"]["method"]
 
       len_for_method =
         case method do
@@ -245,11 +264,11 @@ defmodule AWS.CodeGen.RestService do
         docstring:
           Docstring.format(
             language,
-            doc_spec["operations"][operation]
+            "TODO: remove placeholder docs" ##doc_spec["operations"][operation]
           ),
         method: method,
-        request_uri: operation_spec["http"]["requestUri"],
-        success_status_code: operation_spec["http"]["responseCode"],
+        request_uri: operation_spec["traits"]["smithy.api#http"]["uri"],
+        success_status_code: operation_spec["traits"]["smithy.api#http"]["code"],
         function_name: AWS.CodeGen.Name.to_snake_case(operation),
         name: operation,
         url_parameters: url_parameters,
@@ -333,5 +352,24 @@ defmodule AWS.CodeGen.RestService do
       location_name: data["locationName"],
       required: required
     }
+  end
+
+  defp get_json_version(traits) do
+    IO.inspect(traits)
+    ["aws.protocols#" <> protocol] = Enum.filter(Map.keys(traits), &String.starts_with?(&1, "aws.protocols#"))
+    case protocol do
+      "restJson1" -> "1.1" ## TODO: according to the docs this should result in application/json but our current code will make it application/x-amz-json-1.1
+      "awsJson1_0" -> "1.0"
+      "awsJson1_1" -> "1.1"
+      "restXml" -> nil
+    end
+  end
+
+  defp get_signature_version(traits) do
+    signature = Enum.filter(Map.keys(traits), &String.starts_with?(&1, "aws.auth#"))
+    case signature do
+      ["aws.auth#sig" <> version] -> version
+      [] -> nil
+    end
   end
 end
